@@ -19,13 +19,15 @@ class SymInfo
 {
 public:
     SymInfo(int w, int start, const char* com) :
-        width(w), startX(start), note(com) { //cout << "con-tor" << endl;
+        width(w), startX(start), name(com) { //cout << "con-tor" << endl;
     }
     ~SymInfo() { //cout << "destructor" << endl;
     }
     int width;
     int startX;
-    QString note;
+    QString name;
+    QString code;
+    QString comment;
     std::vector<uint8_t> vdata;
 };
 

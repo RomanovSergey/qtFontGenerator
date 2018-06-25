@@ -106,6 +106,7 @@ void fillSymInfo(QImage &img, fontInfo &f)
 
 int outCCodeFile(QString &outName, fontInfo &f)
 {
+    int cnt;
     QFile file( outName ); // output c-code file
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         cout << "Error: Can't open file (" << outName.toStdString() << ")" << endl;
@@ -118,10 +119,12 @@ int outCCodeFile(QString &outName, fontInfo &f)
     code += QString("#define LEN  %1\n\n").arg(f.maxWidth * f.pages );
     outputStream << code;
 
-    int cnt = 0;
+    cnt = 0;
     for (auto &it : f.vsym) {
-        code = QString("FON_T f_$a%1[LEN] = { // $b%1\n").arg(cnt); //it.note);
-        //outputStream << code;
+        it.code = QString("<code%1>").arg(cnt);
+        it.name = QString("<name%1>").arg(cnt);
+        it.comment = QString("<comment%1>").arg(cnt);
+        code = QString("FON_T %1[LEN] = { // %2\n").arg(it.name).arg(it.comment);
         for (int pg = 0; pg < f.pages; pg++) {
             code += QString("  ");
             for (int sx = 0; sx < f.maxWidth; sx++) {
@@ -130,10 +133,50 @@ int outCCodeFile(QString &outName, fontInfo &f)
             }
             code += QString("\n");
         }
-        code += QString("};\n"); // %1\n").arg(it.note);
+        code += QString("};\n");
         outputStream << code;
         cnt++;
     }
+    code = QString("\n"
+                   "typedef struct {\n"
+                   "  uint16_t code;\n"
+                   "  const char* img;\n"
+                   "} TUcode_t;\n\n");
+    outputStream << code;
+
+    code = QString("static TUcode_t fontX[] = {\n");
+    outputStream << code;
+
+    for (auto &it: f.vsym) {
+        code = QString("  { %1, %2 }, // %3\n").arg(it.code).arg(it.name).arg(it.comment);
+        outputStream << code;
+    }
+    code = QString("};\n\n");
+    outputStream << code;
+
+    code = QString(
+                "// through the binary search algorithm\n"
+                "const char* getFontX( uint16_t key) {\n"
+                "    int len = sizeof( fontX ) / sizeof ( TUcode_t );\n"
+                "    int found = 0;\n"
+                "    int high = len - 1, low = 0;\n"
+                "    int middle = (high + low) / 2;\n"
+                "    while ( !found && high >= low ){\n"
+                "        if ( key == fontX[middle].code ) {\n"
+                "            found = 1;\n"
+                "            break;\n"
+                "        } else if (key < fontX[middle].code ) {\n"
+                "            high = middle - 1;\n"
+                "        } else {\n"
+                "            low = middle + 1;\n"
+                "        }\n"
+                "        middle = (high + low) / 2;\n"
+                "    }\n"
+                "    // if not found, then return symbol '?'\n"
+                "    return (found == 1) ? fontX[middle].img : f_0x3F ;\n"
+                "}\n\n"
+                );
+    outputStream << code;
     file.close();
 return 0;
 }
