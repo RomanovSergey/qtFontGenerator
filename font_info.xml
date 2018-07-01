@@ -1,0 +1,22 @@
+
+<root>
+    
+    <sym code="0x30" name="f_0x30" comment="0"/>
+    <sym code="0x31" name="f_0x31" comment="1"/>
+    <sym code="0x32" name="f_0x32" comment="2"/>
+    <sym code="0x33" name="f_0x33" comment="3"/>
+    <sym code="0x34" name="f_0x34" comment="4"/>
+    <sym code="0x35" name="f_0x35" comment="5"/>
+    <sym code="0x36" name="f_0x36" comment="6"/>
+    <sym code="0x37" name="f_0x37" comment="7"/>
+    <sym code="0x38" name="f_0x38" comment="8"/>
+    <sym code="0x39" name="f_0x39" comment="9"/>
+    
+    <sym code="0x3F" name="f_0x3F" comment="?"/>
+    
+    <sym code="0x41" name="f_0x41" comment="A"/>
+    <sym code="0x6C" name="f_0x6C" comment="l"/>
+    <sym code="0x46" name="f_0x46" comment="F"/>
+    <sym code="0x65" name="f_0x65" comment="e"/>
+    
+</root>

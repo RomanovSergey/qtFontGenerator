@@ -1,3 +1,6 @@
+
+#include "helper.h"
+
 #include <QCoreApplication>
 #include <QCommandLineParser>
 #include <QString>
@@ -7,179 +10,7 @@
 #include <iostream>
 #include <vector>
 
-#include "helper.h"
-
 using namespace std;
-
-void fillSymInfo(QImage &img, fontInfo &f)
-{
-    // to find maxWidth of all given symbols
-    f.maxWidth = 0;
-    int curwidth = 0;
-    int symcnt = 0; // count symbols
-    int beginSymbol = -1;
-    QRgb pix;
-    const QRgb black = qRgb(0,0,0);
-
-    for (int x = 0; x < img.width(); x++) {
-        bool whiteLine = true;
-        for (int y = 0; y < img.height(); y++) {
-            pix = img.pixel(x , y);
-            if ( pix == black ) {
-                whiteLine = false;
-                if (beginSymbol == -1) {
-                    beginSymbol = x;
-                }
-                break;
-            }
-        }
-        if (whiteLine == false) {
-            curwidth++;
-        } else {
-            if (curwidth > f.maxWidth) {
-                f.maxWidth = curwidth;
-            }
-            if (curwidth != 0) {
-                symcnt++;
-                f.vsym.push_back( SymInfo(curwidth, beginSymbol, "non_comment") );
-            }
-            curwidth = 0;
-            beginSymbol = -1;
-        }
-    }
-    cout << "maxwidth=" << f.maxWidth << endl;
-    cout << "symcnt=" << symcnt << endl;
-
-    for (auto &it : f.vsym) {
-        for (int pg = 0; pg < f.pages; pg++) {
-            int space = f.maxWidth - it.width;
-            if ( f.alg.alg == Alg::front ) {
-                for (int n = 0; n < it.width; n++) {
-                    uint8_t byte = 0;
-                    for (int sy = 0; sy < 8; sy++) {
-                        if ( black == img.pixel(it.startX + n, pg * 8 + sy) ) {
-                            byte |= (1 << sy);
-                        }
-                    }
-                    it.vdata.push_back(byte);
-                }
-                for (int n = 0; n < space; n++) {
-                    it.vdata.push_back(0);
-                }
-            } else if ( f.alg.alg == Alg::end ) {
-                for (int n = 0; n < space; n++) {
-                    it.vdata.push_back(0);
-                }
-                for (int n = 0; n < it.width; n++) {
-                    uint8_t byte = 0;
-                    for (int sy = 0; sy < 8; sy++) {
-                        if ( black == img.pixel(it.startX + n, pg * 8 + sy) ) {
-                            byte |= (1 << sy);
-                        }
-                    }
-                    it.vdata.push_back(byte);
-                }
-            } else if ( f.alg.alg == Alg::middle ) {
-                int start  = space / 2;
-                int finish = space - start;
-                for (int n = 0; n < start; n++) {
-                    it.vdata.push_back(0);
-                }
-                for (int n = 0; n < it.width; n++) {
-                    uint8_t byte = 0;
-                    for (int sy = 0; sy < 8; sy++) {
-                        if ( black == img.pixel(it.startX + n, pg * 8 + sy) ) {
-                            byte |= (1 << sy);
-                        }
-                    }
-                    it.vdata.push_back(byte);
-                }
-                for (int n = 0; n < finish; n++) {
-                    it.vdata.push_back(0);
-                }
-            } else {
-                cout << "error: no algorithm" << endl;
-            }
-        }
-    }
-}
-
-int outCCodeFile(QString &outName, fontInfo &f)
-{
-    int cnt;
-    QFile file( outName ); // output c-code file
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        cout << "Error: Can't open file (" << outName.toStdString() << ")" << endl;
-        return -1;
-    }
-    QTextStream outputStream(&file);
-    QString code;
-    code =  QString("//maxWidth=%1, pages=%2\n").arg(f.maxWidth).arg(f.pages);
-    code += QString("\n#define FON_T static const char\n");
-    code += QString("#define LEN  %1\n\n").arg(f.maxWidth * f.pages );
-    outputStream << code;
-
-    cnt = 0;
-    for (auto &it : f.vsym) {
-        it.code = QString("<code%1>").arg(cnt);
-        it.name = QString("<name%1>").arg(cnt);
-        it.comment = QString("<comment%1>").arg(cnt);
-        code = QString("FON_T %1[LEN] = { // %2\n").arg(it.name).arg(it.comment);
-        for (int pg = 0; pg < f.pages; pg++) {
-            code += QString("  ");
-            for (int sx = 0; sx < f.maxWidth; sx++) {
-                code += QString("0x%1, ")
-                        .arg(it.vdata.at(pg * f.maxWidth + sx), 2, 16, QLatin1Char('0'));
-            }
-            code += QString("\n");
-        }
-        code += QString("};\n");
-        outputStream << code;
-        cnt++;
-    }
-    code = QString("\n"
-                   "typedef struct {\n"
-                   "  uint16_t code;\n"
-                   "  const char* img;\n"
-                   "} TUcode_t;\n\n");
-    outputStream << code;
-
-    code = QString("static TUcode_t fontX[] = {\n");
-    outputStream << code;
-
-    for (auto &it: f.vsym) {
-        code = QString("  { %1, %2 }, // %3\n").arg(it.code).arg(it.name).arg(it.comment);
-        outputStream << code;
-    }
-    code = QString("};\n\n");
-    outputStream << code;
-
-    code = QString(
-                "// through the binary search algorithm\n"
-                "const char* getFontX( uint16_t key) {\n"
-                "    int len = sizeof( fontX ) / sizeof ( TUcode_t );\n"
-                "    int found = 0;\n"
-                "    int high = len - 1, low = 0;\n"
-                "    int middle = (high + low) / 2;\n"
-                "    while ( !found && high >= low ){\n"
-                "        if ( key == fontX[middle].code ) {\n"
-                "            found = 1;\n"
-                "            break;\n"
-                "        } else if (key < fontX[middle].code ) {\n"
-                "            high = middle - 1;\n"
-                "        } else {\n"
-                "            low = middle + 1;\n"
-                "        }\n"
-                "        middle = (high + low) / 2;\n"
-                "    }\n"
-                "    // if not found, then return symbol '?'\n"
-                "    return (found == 1) ? fontX[middle].img : f_0x3F ;\n"
-                "}\n\n"
-                );
-    outputStream << code;
-    file.close();
-return 0;
-}
 
 int imageFormat(QImage &img, QString &str) {
     switch ( img.format() ) {
@@ -229,7 +60,7 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
     }
 }
 
-int parse(QCoreApplication &a, QString &picName, QString &txtName, QString &outName)
+int cmdLineParse(QCoreApplication &a, QString &picName, QString &xmlName, QString &outName)
 {
     QCommandLineParser parser;
     parser.setApplicationDescription("program for generate C code font from line *.png image");
@@ -240,12 +71,12 @@ int parse(QCoreApplication &a, QString &picName, QString &txtName, QString &outN
                                      "input file name (*.png or *.bmp or *.jpeg ...) <name>.",
                                      "name");
     parser.addOption( optImageName );
-    QCommandLineOption optTextName( QStringList() << "t" << "text",
-                                    "text file name <name>.",
+    QCommandLineOption optTextName( QStringList() << "x" << "xml",
+                                    "xml file name <name>.",
                                     "name");
     parser.addOption( optTextName );
     QCommandLineOption optOutName( QStringList() << "o" << "output",
-                                   "output file name (*.c) <name>.",
+                                   "output file name (*.c) <name>. Default=default.c",
                                    "name");
     optOutName.setDefaultValue("default.c");
     parser.addOption( optOutName );
@@ -259,8 +90,8 @@ int parse(QCoreApplication &a, QString &picName, QString &txtName, QString &outN
     outName = parser.value( optOutName );
     cout << "Output name is: " << endl << "\t" << outName.toStdString() << endl;
 
-    txtName = parser.value( optTextName );
-    if ( txtName.isEmpty() ) {
+    xmlName = parser.value( optTextName );
+    if ( xmlName.isEmpty() ) {
         cout << "Please set text name (-t FileName) (with comment of characters)" << endl;
         return -1;
     }

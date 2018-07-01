@@ -1,4 +1,5 @@
 QT += gui
+QT += xml
 
 CONFIG += c++11 console
 CONFIG -= app_bundle
@@ -16,7 +17,11 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
         main.cpp \
-    helper.cpp
+    helper.cpp \
+    parser.cpp \
+    fontinfo.cpp
 
 HEADERS += \
-    helper.h
+    helper.h \
+    parser.h \
+    fontinfo.h
